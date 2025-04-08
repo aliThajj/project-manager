@@ -1,0 +1,95 @@
+.card {
+    position: relative;
+    width: 100%;
+    background-color: #f3f4f6;
+    border-radius: 4px;
+    /* padding: 32px 24px; */
+    z-index: 0;
+    overflow: hidden;
+    height: 12rem;
+    transition: all 0.3s ease-out;
+}
+
+.card:before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: -16px;
+    right: -16px;
+    background: var(--primary-color);
+    height: 32px;
+    width: 32px;
+    border-radius: 32px;
+    transform: scale(1);
+    transform-origin: 50% 50%;
+    transition: transform 0.25s ease-out;
+}
+
+.go_corner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    top: 0;
+    right: 0;
+    background-color: var(--primary-color);
+    border-radius: 0 4px 0 32px;
+    transition: background-color 0.3s ease;
+}
+
+.go_arrow {
+    margin-top: -4px;
+    margin-right: -4px;
+    color: white;
+}
+
+.card:hover:before {
+    transform: scale(25);
+    -webkit-transform: scale(25);
+    -moz-transform: scale(25);
+    -ms-transform: scale(25);
+    -o-transform: scale(25);
+}
+
+.card:hover .go_corner {
+    background-color: transparent;
+}
+
+.card h3,
+.card p,
+.card .date {
+    transition: all 0.3s ease-out;
+    position: relative;
+}
+
+.card:hover h3 {
+    color: #fff;
+}
+
+.card:hover p {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.card:hover .date {
+    color: #fff;
+}
+
+/* Focus states for accessibility */
+.card:focus-within:before {
+    transform: scale(23);
+}
+
+.card:focus-within h3 {
+    color: #fff;
+}
+
+.card:focus-within p {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.card:focus-within .date {
+    color: #fff;
+}

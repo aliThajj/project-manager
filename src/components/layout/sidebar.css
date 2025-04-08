@@ -1,0 +1,129 @@
+.aside-container {
+    position: sticky;
+    top: 2rem;
+    /* height: calc(100vh - 7rem); */
+    height: calc(100vh - 6rem);
+    /* margin-top: 2rem; */
+    /* margin-bottom: 2rem; */
+    background: linear-gradient(195deg, #1e1b18, #171412);
+    color: #fafaf9;
+    border-top-right-radius: 0.75rem;
+    border-bottom-right-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    /* overflow: hidden; */
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    transform: translateZ(0);
+    will-change: width;
+    opacity: 0.98;
+    z-index: 10;
+    box-shadow: 1px 0 8px rgba(0, 0, 0, 0.2);
+    transition: all 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.middle-grow {
+    flex: 1;
+    min-height: 0;
+  }
+.lastest-project {
+    max-height: 85%;
+    overflow-y: scroll;
+    /* max-height: 100%; */
+  }
+  
+/* @media (max-height: 580px) {
+    .aside-container {
+        overflow-y: scroll;
+        overflow-x: hidden;
+    }
+} */
+
+.aside-container.narrow {
+    width: 3.75rem;
+}
+
+/* Expanded state */
+.aside-container.expanded {
+    width: 11rem;
+    box-shadow: 2px 0 15px rgba(0, 0, 0, 0.3);
+    filter: drop-shadow(2px 0 6px rgba(0, 0, 0, 0.4));
+}
+
+.aside-container:hover {
+    opacity: 1;
+    background: linear-gradient(195deg, #201d1a, #191614);
+}
+
+.tool-group {
+    position: relative;
+}
+
+.tool-group .text {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    width: 100%;
+    color: rgb(161, 161, 170);
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.tool-group .text:hover {
+    color: rgb(231, 229, 228);
+    background-color: rgb(28, 25, 23);
+}
+
+.tool-group:hover .tool-tip {
+    opacity: 1;
+}
+
+.tool-group .tool-tip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background-color: rgb(41 37 36);
+    color: rgb(231 229 228);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border-radius: 0.25rem;
+    opacity: 0;
+    white-space: nowrap;
+    pointer-events: none;
+    transition-property: opacity;
+    transition-duration: 200ms;
+}
+
+.tool-group .tool-tip:hover {
+    opacity: 1;
+}
+
+.signup .text {
+    border-bottom-right-radius: 0.75rem;
+
+}
+/* Bottom Section - Fixed */
+.user-side {
+    flex-shrink: 0; /* Prevents squishing */
+    height: 130px; /* Fixed height */
+  }
+.hover-shake:hover {
+    animation: shake 0.9s ease-in-out infinite;
+    -webkit-animation: shake 0.9s ease-in-out infinite;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-2px);
+    }
+
+    75% {
+        transform: translateX(2px);
+    }
+}

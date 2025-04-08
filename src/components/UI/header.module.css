@@ -1,0 +1,29 @@
+.header h1{
+    position: relative;
+}
+
+.header h1:before {
+    width: 28px;
+    height: 5px;
+    display: block;
+    content: "";
+    position: absolute;
+    /* bottom: 3px; */
+    bottom: -2px;
+    left: 50%;
+    margin-left: -14px;
+    background-color: #b80000;
+}
+
+.header h1:after {
+    width: 100px;
+    height: 1px;
+    display: block;
+    content: "";
+    position: relative;
+    /* margin-top: 25px; */
+    margin-top: 18px;
+    left: 50%;
+    margin-left: -50px;
+    background-color: #b80000;
+}
