@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from "sonner";
 import { useContext } from 'react';
 import MainLayout from './components/layout/MainLayout';
@@ -17,9 +17,8 @@ const ProtectedRoute = ({ children }) => {
   const { user } = useContext(AuthContext);
 
   if (!user) {
-    // onOpenAuthDialog();
     openDialog('authDialog');
-    return <Navigate to="/" replace />; // Cleaner redirect
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -28,49 +27,48 @@ const ProtectedRoute = ({ children }) => {
 const App = () => {
   const { openDialog } = useContext(ModalContext);
 
-  // const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+  return (
+    <>
+      <Toaster position="top-center" richColors />
+      <Router>
+        <ProjectsProvider>
+          <Routes>
+            <Route element={<MainLayout onOpenAuthDialog={() => openDialog('authDialog')} />}>
+              <Route index element={<Navigate to="/projects" replace />} />
+              
+              <Route path="projects">
+                <Route index element={
+                  <ProjectsListPage onOpenAuthDialog={() => openDialog('authDialog')} />
+                } />
 
-  return <>
-    <Toaster position="top-center" richColors />
-    <BrowserRouter>
-      <ProjectsProvider>
-        <Routes>
-          <Route element={<MainLayout onOpenAuthDialog={() => openDialog('authDialog')} />}>
-            {/* All routes now point to /projects for consistency */}
-            <Route index element={<Navigate to="/projects" replace />} />
+                <Route path="new" element={
+                  <ProtectedRoute>
+                    <NewProject />
+                  </ProtectedRoute>
+                } />
 
-            <Route path="projects">
-              <Route index element={
-                <ProjectsListPage onOpenAuthDialog={() => openDialog('authDialog')} />
-              } />
+                <Route path=":projectId" element={
+                  <ProtectedRoute>
+                    <ProjectDetailPage />
+                  </ProtectedRoute>
+                } />
 
-              <Route path="new" element={
-                <ProtectedRoute onOpenAuthDialog={() => openDialog('authDialog')}>
-                  <NewProject />
-                </ProtectedRoute>
-              } />
-
-              <Route path=":projectId" element={
-                <ProtectedRoute onOpenAuthDialog={() => openDialog('authDialog')}>
-                  <ProjectDetailPage />
-                </ProtectedRoute>
-              } />
-
-              {/* Add edit route if needed */}
-              <Route path=":projectId/edit" element={
-                <ProtectedRoute onOpenAuthDialog={() => openDialog('authDialog')}>
-                  <EditProject />
-                </ProtectedRoute>
-              } />
+                <Route path=":projectId/edit" element={
+                  <ProtectedRoute>
+                    <EditProject />
+                  </ProtectedRoute>
+                } />
+              </Route>
+              
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
+          </Routes>
 
-        <AuthDialog id="authDialog" />
-      </ProjectsProvider>
-    </BrowserRouter>
-  </>
+          <AuthDialog id="authDialog" />
+        </ProjectsProvider>
+      </Router>
+    </>
+  );
 };
 
 export default App;

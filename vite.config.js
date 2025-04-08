@@ -4,41 +4,29 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
+  
+  const base = mode === 'production' 
+    ? '/project-manager/' 
+    : '/';
 
   return {
     plugins: [
       react(),
-      visualizer({
-        open: true, // Automatically opens the report in browser
-        gzipSize: true, // Shows gzip-compressed sizes
-        brotliSize: true, // Shows brotli-compressed sizes
-        filename: 'stats.html' // Output file name
-      })
+      visualizer({ open: true, gzipSize: true, brotliSize: true, filename: "stats.html" })
     ],
-    base: '/',
-    server: {
-      port: 5173,
-      host: true,
-    },
+    base: base, // Dynamic base path for GitHub Pages
+    server: { port: 5173, host: true },
     build: {
       outDir: 'dist',
       emptyOutDir: true,
       rollupOptions: {
         output: {
           manualChunks: {
-            // Split Firebase into separate chunk
-            firebase: [
-              'firebase/app',
-              'firebase/firestore',
-              'firebase/auth',
-              'firebase/analytics'
-            ],
-            // Split React-related dependencies
+            firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth'],
             react: ['react', 'react-dom', 'react-router-dom'],
-            // Add other large dependencies as needed
           }
         },
-        chunkSizeWarningLimit: 1000, // Adjust warning threshold (in kB)
+        chunkSizeWarningLimit: 1000,
       }
     }
   };
