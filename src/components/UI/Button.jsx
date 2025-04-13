@@ -1,6 +1,7 @@
 import React from "react";
 
-export default function Button({ children, isLoading, danger, ...props }) {
+export default function Button({ children, isLoading, danger, secondary, ...props }) {
+    // Red Button with Loader
     if (danger) {
         return (
             <button
@@ -21,6 +22,17 @@ export default function Button({ children, isLoading, danger, ...props }) {
             </button>
         );
     }
+    if (secondary) {
+        return (
+            <button
+                className="px-4 py-2 h-[40px] rounded-md hover:bg-slate-700 hover:text-stone-100 bg-stone-600 text-stone-100 relative transition-colors duration-200"
+                {...props}>
+                {children}
+            </button>
+        );
+    }
+
+    // Basic Button with Loader
     return (
         <button
             className={`px-4 py-2 h-[40px] rounded-md bg-slate-700 text-stone-100 hover:bg-stone-600 hover:text-stone-100 relative transition-colors duration-200 ${isLoading ? "text-transparent" : ""}`}

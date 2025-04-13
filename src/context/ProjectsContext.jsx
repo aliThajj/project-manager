@@ -1,43 +1,47 @@
-import { createContext, useContext, useState, useEffect } from "react";
-
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import {
-  collection,
-  doc,
-  addDoc,
-  getDocs,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-  query,
-  orderBy,
-  limit,
-  startAfter,
+  collection, doc, addDoc, getDocs, getDoc,
+  updateDoc, deleteDoc, serverTimestamp,
+  query, orderBy, limit, startAfter,
+  onSnapshot, writeBatch
 } from "firebase/firestore";
 import { db, auth } from "../Firebase/firebase";
 
-// Create the context
 export const ProjectsContext = createContext();
 
-// Provider component
 export const ProjectsProvider = ({ children }) => {
-  // States for project data and UI
+  // Project states
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [isSkeletonLoader, setSkeletonLoader] = useState(false);
   const [error, setError] = useState(null);
-  // const [deleteStatus, setDeleteStatus] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalProjectsCount, setTotalProjectsCount] = useState(0);
-  const [pageCursors, setPageCursors] = useState([]); // Stores all cursors in order [page1Cursor, page2Cursor, ...]
-  const pageSize = 6; // Number of items per page
+  const [pageCursors, setPageCursors] = useState([]);
+  const pageSize = 6;
+
+  // Task states
+  const [currentProjectTasks, setCurrentProjectTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState(null);
+
+  // Task configuration constants
+  const MAX_TASK_LENGTH = 100;        // Maximum characters per task title
+  const MAX_TASKS_PER_PROJECT = 15;   // Maximum tasks allowed per project
+  const MIN_TASK_LENGTH = 1;          // Minimum characters required for task title
+
+  // TASK LIMIT CONFIGURATION
+  const taskLimits = {
+    maxLength: MAX_TASK_LENGTH,
+    maxTasks: MAX_TASKS_PER_PROJECT,
+    minLength: MIN_TASK_LENGTH
+  };
 
 
-  /**
-   * Fetch projects for a specific page
-   * @param {number} page - The page number to fetch
-   */
+  // ========================
+  // PROJECT FUNCTIONS
+  // ========================
 
   // Load initial data on login
   useEffect(() => {
@@ -52,83 +56,55 @@ export const ProjectsProvider = ({ children }) => {
       }
       if (user) {
         setProjectsLoading(true);
-
         // Preload all cursors first, then fetch page 1
         await preloadAllCursors();
         await fetchProjects(1);
       }
-
     });
 
     return () => unsubscribeAuth();
   }, []);
 
 
+
   // Fetch Projects
   const fetchProjects = async (page) => {
-    // setProjectsLoading(true);
-    console.log('start Fetching Projects + loeader is : ', projectsLoading)
     try {
       const user = auth.currentUser;
       if (!user) return;
 
       const projectsRef = collection(db, "users", user.uid, "projects");
-      console.log('start Fetching Projects + loeader is : ', projectsLoading)
-
-      // For page 1, fetch directly (no cursor needed)
       if (page === 1) {
-        const q = query(
-          projectsRef,
-          orderBy("createdAt", "desc"),
-          limit(pageSize)
-        );
+        const q = query(projectsRef, orderBy("createdAt", "desc"), limit(pageSize));
         const snapshot = await getDocs(q);
-        const projectsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        // after fetch
-        setProjects(projectsData);
+        setProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setProjectsLoading(false);
         return;
       }
-
-      // For pages > 1, use preloaded cursor
-      if (pageCursors[page - 2]) { // page-2 because array is 0-indexed (page1 cursor = index 0)
+      if (pageCursors[page - 2]) {
         const q = query(
           projectsRef,
           orderBy("createdAt", "desc"),
           startAfter(pageCursors[page - 2]),
           limit(pageSize)
         );
-
         const snapshot = await getDocs(q);
-        const projectsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setProjects(projectsData);
-      } else {
-        console.error("Cursor not found for page", page);
+        setProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       }
-
       setCurrentPage(page);
     } catch (error) {
       setError(error.message);
-      console.error("❌ Error fetching projects:", error);
+      console.error("Error fetching projects:", error);
     }
   };
 
-  /**
-   * Change the current page
-   * @param {number} newPage - The page number to navigate to
-   */
+
+  // Change page with proper loading states
   const changePage = async (newPage) => {
-    setSkeletonLoader(true) // show
+    setSkeletonLoader(true);
     if (newPage < 1 || newPage > totalPages) return;
 
-    // Force a re-fetch even if it's the same page (to handle deletions/additions)
+    // Force a re-fetch even if it's the same page
     await fetchProjects(newPage);
 
     // Update currentPage after fetch is done
@@ -136,10 +112,7 @@ export const ProjectsProvider = ({ children }) => {
     setSkeletonLoader(false);
   };
 
-  /**
-   * Preload ALL cursors at once (runs on initial load)
-   * This ensures we have all necessary cursors before pagination begins
-   */
+  // Preload ALL cursors at once (critical for pagination)
   const preloadAllCursors = async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -148,15 +121,15 @@ export const ProjectsProvider = ({ children }) => {
     const cursors = [];
     let lastVisible = null;
 
-    // Fetch total count to determine how many pages exist
+    // Fetch total count first
     const countSnapshot = await getDocs(projectsRef);
     const totalProjects = countSnapshot.size;
     setTotalProjectsCount(totalProjects);
-    const totalPages = Math.ceil(totalProjects / pageSize);
-    setTotalPages(totalPages);
+    const calculatedTotalPages = Math.ceil(totalProjects / pageSize);
+    setTotalPages(calculatedTotalPages);
 
     // Fetch cursors for ALL pages
-    for (let p = 1; p <= totalPages; p++) {
+    for (let p = 1; p <= calculatedTotalPages; p++) {
       const q = query(
         projectsRef,
         orderBy("createdAt", "desc"),
@@ -167,7 +140,7 @@ export const ProjectsProvider = ({ children }) => {
       const snap = await getDocs(q);
       if (snap.docs.length > 0) {
         lastVisible = snap.docs[snap.docs.length - 1];
-        cursors[p - 1] = lastVisible; // Store in array (index 0 = page 1 cursor)
+        cursors[p - 1] = lastVisible;
       } else {
         break;
       }
@@ -176,10 +149,7 @@ export const ProjectsProvider = ({ children }) => {
     setPageCursors(cursors);
   };
 
-  /**
-   * Add a new project to Firestore
-   * @param {object} projectData - The project data to add
-   */
+  // Add project with proper pagination updates
   const addProject = async (projectData) => {
     try {
       const user = auth.currentUser;
@@ -195,10 +165,10 @@ export const ProjectsProvider = ({ children }) => {
       const projectsRef = collection(db, "users", user.uid, "projects");
       const docRef = await addDoc(projectsRef, projectWithMeta);
 
-      // Refresh pagination data
-      await fetchProjects(1); // fetch project
+      // Refresh all pagination data
+      await fetchProjects(1);
       await preloadAllCursors();
-      await changePage(1); // Go back to page 1
+      await changePage(1);
       setSkeletonLoader(false);
 
       return docRef.id;
@@ -208,11 +178,7 @@ export const ProjectsProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Update an existing project
-   * @param {string} projectId - The ID of the project to update
-   * @param {object} updates - The updates to apply
-   */
+  // Edit project
   const editProject = async (projectId, updates) => {
     try {
       const user = auth.currentUser;
@@ -234,17 +200,12 @@ export const ProjectsProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Delete a project
-   * @param {string} projectId - The ID of the project to delete
-   */
+  // Delete project with proper pagination handling
   const deleteProject = async (projectId) => {
-    // setSkeletonLoader(true);
-    // SetTimeout for showing loader in button of delete 
     setTimeout(() => {
       setSkeletonLoader(true);
-
     }, 500);
+
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
@@ -264,17 +225,14 @@ export const ProjectsProvider = ({ children }) => {
       // 3. Refresh pagination cursors (critical!)
       await preloadAllCursors();
 
-      // 4. Handle page adjustment ONLY if current page is now empty
+      // 4. Handle page adjustment
       if (projects.length === 1 && currentPage > 1) {
-        await changePage(currentPage - 1); // Go back if last item on page
-
+        await changePage(currentPage - 1);
       } else {
-        await fetchProjects(currentPage); // Re-fetch current page otherwise
+        await fetchProjects(currentPage);
       }
 
-      // 5. Remove Loader 
       setSkeletonLoader(false);
-
       return { success: true, message: "Project deleted successfully!" };
     } catch (err) {
       setSkeletonLoader(false);
@@ -282,31 +240,7 @@ export const ProjectsProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Logout and reset state
-   */
-  // const logoutUser = async () => {
-  //   await auth.signOut();
-  //   console.log('signout from projectContext')
-  //   setProjects([]);
-  //   setCurrentPage(1);
-  //   setPageCursors([]);
-  // };
-
-
-  // Set Loader  after login context 
-  // const setCustomLoader = () => {
-  //   setProjectsLoading(true);
-  //   console.log('setCustom : ', projectsLoading)
-  // };
-
-  // const removeCustomLoader = () => {
-  //   setProjectsLoading(false);
-  //   console.log('removeCustom : ', projectsLoading)
-
-  // }
-
-
+  // Get project by ID
   const getProjectById = async (projectId) => {
     const user = auth.currentUser;
     if (!user) return null;
@@ -323,30 +257,222 @@ export const ProjectsProvider = ({ children }) => {
       return null;
     }
   };
+
+  // ========================
+  // TASK FUNCTIONS
+  // ========================
+
+  /**
+   * Validates a task title against configured limits
+   * @param {string} title - The task title to validate
+   * @throws {Error} When validation fails
+   */
+  const validateTaskTitle = (title) => {
+    if (!title || title.trim().length < MIN_TASK_LENGTH) {
+      throw new Error(`Task title must be at least ${MIN_TASK_LENGTH} character`);
+    }
+    if (title.length > MAX_TASK_LENGTH) {
+      throw new Error(`Task title too long (max ${MAX_TASK_LENGTH} characters)`);
+    }
+  };
+
+  /**
+   * Validates the number of tasks against the maximum allowed
+   * @param {number} currentCount - Current number of tasks
+   * @throws {Error} When task limit is exceeded
+   */
+  const validateTaskCount = (currentCount) => {
+    if (currentCount >= MAX_TASKS_PER_PROJECT) {
+      throw new Error(`Maximum ${MAX_TASKS_PER_PROJECT} tasks per project`);
+    }
+  };
+
+  // ========================
+  // TASK FUNCTIONS
+  // ========================
+
+  // Real-time task listener with order tracking
+  useEffect(() => {
+    if (!currentProjectId) return;
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const tasksRef = collection(db, "users", user.uid, "projects", currentProjectId, "tasks");
+    const q = query(tasksRef, orderBy("order", "asc")); // Critical for drag-and-drop
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const tasks = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setCurrentProjectTasks(tasks);
+    });
+
+    return () => unsubscribe();
+  }, [currentProjectId]);
+
+  // Fetch tasks for a project (initial load)
+  const fetchProjectTasks = useCallback(async (projectId) => {
+    if (!projectId) return;
+    setTasksLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const tasksRef = collection(db, "users", user.uid, "projects", projectId, "tasks");
+      const q = query(tasksRef, orderBy("order", "asc"));
+      const snapshot = await getDocs(q);
+
+      setCurrentProjectId(projectId);
+      setCurrentProjectTasks(snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })));
+    } catch (error) {
+      setError(error.message);
+      console.error("Failed to fetch tasks:", error);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  /**
+   * Adds a new task to a project with validation
+   * @param {string} projectId - The project ID to add the task to
+   * @param {object} taskData - Task data including title, order, etc.
+   * @throws {Error} When validation fails or Firestore operation fails
+   */
+  const addTask = async (projectId, taskData) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+
+      // Validate task title
+      validateTaskTitle(taskData.title);
+
+      // Prepare task data with metadata
+      const taskWithMeta = {
+        ...taskData,
+        title: taskData.title.trim(), // Clean up whitespace
+        createdAt: taskData.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const tasksRef = collection(db, "users", user.uid, "projects", projectId, "tasks");
+      await addDoc(tasksRef, taskWithMeta);
+    } catch (error) {
+      console.error("Failed to add task:", error);
+      throw error; // Re-throw for component to handle
+    }
+  };
+
+  /**
+   * Updates an existing task with validation
+   * @param {string} projectId - The project ID containing the task
+   * @param {string} taskId - The task ID to update
+   * @param {object} updates - The updates to apply
+   * @throws {Error} When validation fails or Firestore operation fails
+   */
+  const updateTask = async (projectId, taskId, updates) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+
+      // Validate title if it's being updated
+      if (updates.title) {
+        validateTaskTitle(updates.title);
+        updates.title = updates.title.trim(); // Clean up whitespace
+      }
+
+      const taskRef = doc(db, "users", user.uid, "projects", projectId, "tasks", taskId);
+      await updateDoc(taskRef, {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  /**
+   * Deletes a task from a project
+   * @param {string} projectId - The project ID containing the task
+   * @param {string} taskId - The task ID to delete
+   * @throws {Error} When Firestore operation fails
+   */
+  const deleteTask = async (projectId, taskId) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+
+      const taskRef = doc(db, "users", user.uid, "projects", projectId, "tasks", taskId);
+      await deleteDoc(taskRef);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  /**
+   * Reorders tasks with batch update (for drag-and-drop)
+   * @param {string} projectId - The project ID containing the tasks
+   * @param {Array} newOrder - Array of tasks in new order
+   * @throws {Error} When Firestore operation fails
+   */
+  const reorderTasks = async (projectId, newOrder) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+
+      const batch = writeBatch(db);
+      newOrder.forEach((task, newIndex) => {
+        const taskRef = doc(db, "users", user.uid, "projects", projectId, "tasks", task.id);
+        batch.update(taskRef, { order: newIndex });
+      });
+      await batch.commit();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+
+  // ========================
+  // CONTEXT VALUE
+  // ========================
   return (
     <ProjectsContext.Provider
       value={{
+        // Project management
         projects,
         projectsLoading,
         isSkeletonLoader,
         error,
-        // deleteStatus,
         currentPage,
         totalPages,
         changePage,
         addProject,
         editProject,
         deleteProject,
-        getProjectById
-        // logoutUser,
-        // setCustomLoader,
-        // removeCustomLoader
-      }}
-    >
+        getProjectById,
+        // Task management
+        currentProjectId,
+        currentProjectTasks,
+        tasksLoading,
+        taskLimits,
+        fetchProjectTasks,
+        addTask,
+        updateTask,
+        deleteTask,
+        reorderTasks,
+        validateTaskTitle,
+        validateTaskCount,
+        setCurrentProjectId,
+      }}>
       {children}
     </ProjectsContext.Provider>
   );
 };
 
-// Custom hook to use the context
 export const useProjects = () => useContext(ProjectsContext);
