@@ -20,7 +20,8 @@ const Input = forwardRef(function Input({ label, textarea, error, type, ...props
     const inputType = isPasswordField ? (showPassword ? "text" : "password") : type || "text";
 
     return (
-        <div className="my-4">
+        // <div className="my-4">
+        <div>
             {textarea ? (
                 <textarea
                     ref={ref}
